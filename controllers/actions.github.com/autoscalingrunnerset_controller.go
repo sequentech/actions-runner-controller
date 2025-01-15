@@ -402,7 +402,7 @@ func (r *AutoscalingRunnerSetReconciler) removeFinalizersFromDependentResources(
 
 func (r *AutoscalingRunnerSetReconciler) createRunnerScaleSet(ctx context.Context, autoscalingRunnerSet *v1alpha1.AutoscalingRunnerSet, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("Creating a new runner scale set")
-	actionsClient, err := r.ActionsClientResolver.ResolveForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
+	actionsClient, err := r.ActionsClientGetter.GetActionsClientForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
 	if len(autoscalingRunnerSet.Spec.RunnerScaleSetName) == 0 {
 		autoscalingRunnerSet.Spec.RunnerScaleSetName = autoscalingRunnerSet.Name
 	}
@@ -498,7 +498,7 @@ func (r *AutoscalingRunnerSetReconciler) updateRunnerScaleSetRunnerGroup(ctx con
 		return ctrl.Result{}, err
 	}
 
-	actionsClient, err := r.ActionsClientResolver.ResolveForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
+	actionsClient, err := r.ActionsClientGetter.GetActionsClientForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
 	if err != nil {
 		logger.Error(err, "Failed to initialize Actions service client for updating a existing runner scale set")
 		return ctrl.Result{}, err
@@ -546,7 +546,7 @@ func (r *AutoscalingRunnerSetReconciler) updateRunnerScaleSetName(ctx context.Co
 		return ctrl.Result{}, nil
 	}
 
-	actionsClient, err := r.ActionsClientResolver.ResolveForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
+	actionsClient, err := r.ActionsClientGetter.GetActionsClientForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
 	if err != nil {
 		logger.Error(err, "Failed to initialize Actions service client for updating a existing runner scale set")
 		return ctrl.Result{}, err
@@ -597,7 +597,7 @@ func (r *AutoscalingRunnerSetReconciler) deleteRunnerScaleSet(ctx context.Contex
 		return nil
 	}
 
-	actionsClient, err := r.ActionsClientResolver.ResolveForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
+	actionsClient, err := r.ActionsClientGetter.GetActionsClientForAutoscalingRunnerSet(ctx, autoscalingRunnerSet)
 	if err != nil {
 		logger.Error(err, "Failed to initialize Actions service client for updating a existing runner scale set")
 		return err

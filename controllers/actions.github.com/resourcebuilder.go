@@ -71,7 +71,7 @@ func SetListenerEntrypoint(entrypoint string) {
 
 type ResourceBuilder struct {
 	ExcludeLabelPropagationPrefixes []string
-	ActionsClientResolver
+	ActionsClientGetter
 }
 
 func (b *ResourceBuilder) newAutoScalingListener(autoscalingRunnerSet *v1alpha1.AutoscalingRunnerSet, ephemeralRunnerSet *v1alpha1.EphemeralRunnerSet, namespace, image string, imagePullSecrets []corev1.LocalObjectReference) (*v1alpha1.AutoscalingListener, error) {

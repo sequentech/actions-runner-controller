@@ -276,7 +276,7 @@ func main() {
 			log.WithName("actions-clients"),
 		)
 
-		resolver, err := newActionsClientResolver(
+		actionsClientGetter, err := newActionsClientGetter(
 			mgr.GetClient(),
 			actionsMultiClient,
 		)
@@ -287,7 +287,7 @@ func main() {
 
 		rb := actionsgithubcom.ResourceBuilder{
 			ExcludeLabelPropagationPrefixes: excludeLabelPropagationPrefixes,
-			ActionsClientResolver:           resolver,
+			ActionsClientGetter:             actionsClientGetter,
 		}
 
 		if err = (&actionsgithubcom.AutoscalingRunnerSetReconciler{
@@ -504,7 +504,7 @@ func (s *commaSeparatedStringSlice) Set(value string) error {
 	return nil
 }
 
-func newActionsClientResolver(k8sClient client.Client, multiClient actions.MultiClient) (actionsgithubcom.ActionsClientResolver, error) {
+func newActionsClientGetter(k8sClient client.Client, multiClient actions.MultiClient) (actionsgithubcom.ActionsClientGetter, error) {
 	vaultType := os.Getenv("CONTROLLER_MANAGER_VAULT_TYPE")
 	if vaultType == "" {
 		return &actionsgithubcom.ActionsClientSecretResolver{

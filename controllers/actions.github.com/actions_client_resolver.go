@@ -12,18 +12,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ActionsClientResolver interface {
-	ResolveForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error)
-	ResolveForEphemeralRunnerSet(ctx context.Context, ers *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error)
-	ResolveForEphemeralRunner(ctx context.Context, er *v1alpha1.EphemeralRunner) (actions.ActionsService, error)
+type ActionsClientGetter interface {
+	GetActionsClientForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error)
+	GetActionsClientForEphemeralRunnerSet(ctx context.Context, ers *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error)
+	GetActionsClientForEphemeralRunner(ctx context.Context, er *v1alpha1.EphemeralRunner) (actions.ActionsService, error)
 }
+
+var (
+	_ ActionsClientGetter = (*ActionsClientSecretResolver)(nil)
+	_ ActionsClientGetter = (*ActionsClientVaultResolver)(nil)
+)
 
 type ActionsClientSecretResolver struct {
 	client.Client
 	actions.MultiClient
 }
 
-func (r *ActionsClientSecretResolver) ResolveForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error) {
+func (r *ActionsClientSecretResolver) GetActionsClientForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error) {
 	var configSecret corev1.Secret
 	if err := r.Get(ctx, types.NamespacedName{Namespace: ars.Namespace, Name: ars.Spec.GitHubConfigSecret}, &configSecret); err != nil {
 		return nil, fmt.Errorf("failed to find GitHub config secret: %w", err)
@@ -91,7 +96,7 @@ func (r *ActionsClientSecretResolver) actionsClientOptionsForAutoscalingRunnerSe
 	return options, nil
 }
 
-func (r *ActionsClientSecretResolver) ResolveForEphemeralRunnerSet(ctx context.Context, rs *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error) {
+func (r *ActionsClientSecretResolver) GetActionsClientForEphemeralRunnerSet(ctx context.Context, rs *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error) {
 	secret := new(corev1.Secret)
 	if err := r.Get(ctx, types.NamespacedName{Namespace: rs.Namespace, Name: rs.Spec.EphemeralRunnerSpec.GitHubConfigSecret}, secret); err != nil {
 		return nil, fmt.Errorf("failed to get secret: %w", err)
@@ -158,7 +163,7 @@ func (r *ActionsClientSecretResolver) actionsClientOptionsForEphemeralRunnerSet(
 	return opts, nil
 }
 
-func (r *ActionsClientSecretResolver) ResolveForEphemeralRunner(ctx context.Context, runner *v1alpha1.EphemeralRunner) (actions.ActionsService, error) {
+func (r *ActionsClientSecretResolver) GetActionsClientForEphemeralRunner(ctx context.Context, runner *v1alpha1.EphemeralRunner) (actions.ActionsService, error) {
 	secret := new(corev1.Secret)
 	if err := r.Get(ctx, types.NamespacedName{Namespace: runner.Namespace, Name: runner.Spec.GitHubConfigSecret}, secret); err != nil {
 		return nil, fmt.Errorf("failed to get secret: %w", err)
@@ -230,14 +235,14 @@ type ActionsClientVaultResolver struct {
 	actions.MultiClient
 }
 
-func (r *ActionsClientVaultResolver) ResolveForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error) {
+func (r *ActionsClientVaultResolver) GetActionsClientForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error) {
 	panic("todo")
 }
 
-func (r *ActionsClientVaultResolver) ResolveForEphemeralRunnerSet(ctx context.Context, ers *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error) {
+func (r *ActionsClientVaultResolver) GetActionsClientForEphemeralRunnerSet(ctx context.Context, ers *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error) {
 	panic("todo")
 }
 
-func (r *ActionsClientVaultResolver) ResolveForEphemeralRunner(ctx context.Context, er *v1alpha1.EphemeralRunner) (actions.ActionsService, error) {
+func (r *ActionsClientVaultResolver) GetActionsClientForEphemeralRunner(ctx context.Context, er *v1alpha1.EphemeralRunner) (actions.ActionsService, error) {
 	panic("todo")
 }
