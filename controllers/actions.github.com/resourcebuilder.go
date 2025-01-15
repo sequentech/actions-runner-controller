@@ -39,6 +39,8 @@ var commonLabelKeys = [...]string{
 
 const labelValueKubernetesPartOf = "gha-runner-scale-set"
 
+var vaultSecretAnnotationKeys = [...]string{}
+
 var (
 	scaleSetListenerLogLevel   = DefaultScaleSetListenerLogLevel
 	scaleSetListenerLogFormat  = DefaultScaleSetListenerLogFormat

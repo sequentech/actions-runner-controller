@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -13,12 +12,7 @@ import (
 )
 
 func main() {
-	configPath, ok := os.LookupEnv("LISTENER_CONFIG_PATH")
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: LISTENER_CONFIG_PATH environment variable is not set\n")
-		os.Exit(1)
-	}
-	config, err := config.Read(configPath)
+	config, err := config.Read()
 	if err != nil {
 		log.Printf("Failed to read config: %v", err)
 		os.Exit(1)

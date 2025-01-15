@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 
 	"github.com/actions/actions-runner-controller/build"
 	"github.com/actions/actions-runner-controller/github/actions"
@@ -34,8 +35,14 @@ type Config struct {
 	MetricsEndpoint             string `json:"metricsEndpoint"`
 }
 
-func Read(path string) (Config, error) {
-	f, err := os.Open(path)
+func Read() (Config, error) {
+	configPath, ok := os.LookupEnv("LISTENER_CONFIG_PATH")
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: LISTENER_CONFIG_PATH environment variable is not set\n")
+		os.Exit(1)
+	}
+
+	f, err := os.Open(configPath)
 	if err != nil {
 		return Config{}, err
 	}
@@ -46,8 +53,38 @@ func Read(path string) (Config, error) {
 		return Config{}, fmt.Errorf("failed to decode config: %w", err)
 	}
 
+	vaultPath, ok := os.LookupEnv("LISTENER_CONFIG_VAULT_PATH")
+	if !ok {
+		if err := config.Validate(); err != nil {
+			return Config{}, fmt.Errorf("config validation failed: %w", err)
+		}
+
+		return config, nil
+	}
+
+	f, err = os.Open(vaultPath)
+	if err != nil {
+		return Config{}, err
+	}
+	defer f.Close()
+
+	var m map[string]string
+	if err := json.NewDecoder(f).Decode(&m); err != nil {
+		return Config{}, fmt.Errorf("failed to decode vault config: %w", err)
+	}
+	config.Token = m["github_token"]
+	config.AppID, err = strconv.ParseInt(m["github_app_id"], 10, 64)
+	if err != nil {
+		return Config{}, fmt.Errorf("failed to parse github_app_id: %w", err)
+	}
+	config.AppInstallationID, err = strconv.ParseInt(m["github_app_installation_id"], 10, 64)
+	if err != nil {
+		return Config{}, fmt.Errorf("failed to parse github_app_installation_id: %w", err)
+	}
+	config.AppPrivateKey = m["github_app_private_key"]
+
 	if err := config.Validate(); err != nil {
-		return Config{}, fmt.Errorf("failed to validate config: %w", err)
+		return Config{}, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return config, nil

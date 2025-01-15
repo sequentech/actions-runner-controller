@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -505,19 +506,39 @@ func (s *commaSeparatedStringSlice) Set(value string) error {
 }
 
 func newActionsClientGetter(k8sClient client.Client, multiClient actions.MultiClient) (actionsgithubcom.ActionsClientGetter, error) {
-	vaultType := os.Getenv("CONTROLLER_MANAGER_VAULT_TYPE")
-	if vaultType == "" {
+	vaultType, ok := os.LookupEnv("CONTROLLER_MANAGER_VAULT_TYPE")
+	if !ok {
 		return &actionsgithubcom.ActionsClientSecretResolver{
 			Client:      k8sClient,
 			MultiClient: multiClient,
 		}, nil
 	}
 
-	key := os.Getenv("CONTROLLER_MANAGER_VAULT_API_KEY")
+	switch vaultType {
+	case "azure":
+	default:
+		return nil, fmt.Errorf("unsupported vault type: %q", vaultType)
+	}
+
+	cfgPath, ok := os.LookupEnv("CONTROLLER_MANAGER_VAULT_PATH")
+	if !ok {
+		return nil, fmt.Errorf("CONTROLLER_MANAGER_VAULT_PATH is not set")
+	}
+
+	f, err := os.Open(cfgPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open vault configuration file: %w", err)
+	}
+	defer f.Close()
+
 	var vault vault.Vault
 	switch vaultType {
 	case "azure":
-		v, err := azurekeyvault.New(azurekeyvault.Config{JWT: key})
+		var cfg azurekeyvault.Config
+		if err := json.NewDecoder(f).Decode(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to decode Azure Key Vault configuration: %w", err)
+		}
+		v, err := azurekeyvault.New(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create Azure Key Vault client: %w", err)
 		}

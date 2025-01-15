@@ -62,6 +62,12 @@ const (
 	AnnotationKeyNoPermissionServiceAccountName   = "actions.github.com/cleanup-no-permission-service-account-name"
 )
 
+// Annotations on resources used when Vault is enabled.
+const (
+	// AnnotationKeyVaultKey is used to fetch the secret from vault
+	AnnotationKeyVaultKey = "actions.github.com/vault-key"
+)
+
 // DefaultScaleSetListenerLogLevel is the default log level applied
 const DefaultScaleSetListenerLogLevel = string(logging.LogLevelDebug)
 

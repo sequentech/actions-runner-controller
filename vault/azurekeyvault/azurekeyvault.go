@@ -6,7 +6,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets"
 )
 
 type AzureKeyVault struct {
@@ -14,10 +14,10 @@ type AzureKeyVault struct {
 }
 
 type Config struct {
-	ClientID string
-	TenantID string
-	JWT      string
-	URL      string
+	ClientID string `json:"client_id"`
+	TenantID string `json:"tenant_id"`
+	JWT      string `json:"jwt"`
+	URL      string `json:"url"`
 }
 
 func (c *Config) getAssertion(ctx context.Context) (string, error) {
@@ -46,7 +46,7 @@ func New(cfg Config) (*AzureKeyVault, error) {
 }
 
 func (v *AzureKeyVault) GetSecret(ctx context.Context, name, version string) (string, error) {
-	secret, err := v.client.GetSecret(context.Background(), name, version, nil)
+	secret, err := v.client.GetSecret(ctx, name, version, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to get secret: %w", err)
 	}

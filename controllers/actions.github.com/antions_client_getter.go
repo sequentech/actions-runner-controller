@@ -2,6 +2,7 @@ package actionsgithubcom
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/actions/actions-runner-controller/apis/actions.github.com/v1alpha1"
@@ -236,13 +237,59 @@ type ActionsClientVaultResolver struct {
 }
 
 func (r *ActionsClientVaultResolver) GetActionsClientForAutoscalingRunnerSet(ctx context.Context, ars *v1alpha1.AutoscalingRunnerSet) (actions.ActionsService, error) {
-	panic("todo")
+	secret, err := r.GetSecret(ctx, ars.Annotations[AnnotationKeyVaultKey], "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret: %w", err)
+	}
+	var m map[string][]byte
+	if err := json.Unmarshal([]byte(secret), &m); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal secret: %w", err)
+	}
+	// opts, err := r.actionsClientOptionsForEphemeralRunner(ctx, runner)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to get actions client options: %w", err)
+	// }
+
+	return r.MultiClient.GetClientFromSecret(
+		ctx,
+		ars.Spec.GitHubConfigUrl,
+		ars.Namespace,
+		m,
+	)
 }
 
 func (r *ActionsClientVaultResolver) GetActionsClientForEphemeralRunnerSet(ctx context.Context, ers *v1alpha1.EphemeralRunnerSet) (actions.ActionsService, error) {
-	panic("todo")
+	secret, err := r.GetSecret(ctx, ers.Annotations[AnnotationKeyVaultKey], "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret: %w", err)
+	}
+	var m map[string][]byte
+	if err := json.Unmarshal([]byte(secret), &m); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal secret: %w", err)
+	}
+
+	return r.MultiClient.GetClientFromSecret(
+		ctx,
+		ers.Spec.EphemeralRunnerSpec.GitHubConfigUrl,
+		ers.Namespace,
+		m,
+	)
 }
 
 func (r *ActionsClientVaultResolver) GetActionsClientForEphemeralRunner(ctx context.Context, er *v1alpha1.EphemeralRunner) (actions.ActionsService, error) {
-	panic("todo")
+	secret, err := r.GetSecret(ctx, er.Annotations[AnnotationKeyVaultKey], "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret: %w", err)
+	}
+	var m map[string][]byte
+	if err := json.Unmarshal([]byte(secret), &m); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal secret: %w", err)
+	}
+
+	return r.MultiClient.GetClientFromSecret(
+		ctx,
+		er.Spec.GitHubConfigUrl,
+		er.Namespace,
+		m,
+	)
 }
