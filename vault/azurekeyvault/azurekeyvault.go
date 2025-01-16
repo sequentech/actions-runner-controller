@@ -30,7 +30,9 @@ func New(cfg Config) (*AzureKeyVault, error) {
 		cfg.ClientID,
 		cfg.getAssertion,
 		&azidentity.ClientAssertionCredentialOptions{
-			ClientOptions: azcore.ClientOptions{},
+			ClientOptions: azcore.ClientOptions{
+				Transport: nil,
+			},
 		},
 	)
 	if err != nil {

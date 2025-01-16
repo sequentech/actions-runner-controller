@@ -101,10 +101,15 @@ var _ = Describe("EphemeralRunner", func() {
 			configSecret = createDefaultSecret(GinkgoT(), k8sClient, autoscalingNS.Name)
 
 			controller = &EphemeralRunnerReconciler{
-				Client:        mgr.GetClient(),
-				Scheme:        mgr.GetScheme(),
-				Log:           logf.Log,
-				ActionsClient: fake.NewMultiClient(),
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+				Log:    logf.Log,
+				ResourceBuilder: ResourceBuilder{
+					ActionsClientGetter: &ActionsClientSecretResolver{
+						Client:      mgr.GetClient(),
+						MultiClient: fake.NewMultiClient(),
+					},
+				},
 			}
 
 			err := controller.SetupWithManager(mgr)
@@ -665,22 +670,27 @@ var _ = Describe("EphemeralRunner", func() {
 				Client: mgr.GetClient(),
 				Scheme: mgr.GetScheme(),
 				Log:    logf.Log,
-				ActionsClient: fake.NewMultiClient(
-					fake.WithDefaultClient(
-						fake.NewFakeClient(
-							fake.WithGetRunner(
+				ResourceBuilder: ResourceBuilder{
+					ActionsClientGetter: &ActionsClientSecretResolver{
+						Client: mgr.GetClient(),
+						MultiClient: fake.NewMultiClient(
+							fake.WithDefaultClient(
+								fake.NewFakeClient(
+									fake.WithGetRunner(
+										nil,
+										&actions.ActionsError{
+											StatusCode: http.StatusNotFound,
+											Err: &actions.ActionsExceptionError{
+												ExceptionName: "AgentNotFoundException",
+											},
+										},
+									),
+								),
 								nil,
-								&actions.ActionsError{
-									StatusCode: http.StatusNotFound,
-									Err: &actions.ActionsExceptionError{
-										ExceptionName: "AgentNotFoundException",
-									},
-								},
 							),
 						),
-						nil,
-					),
-				),
+					},
+				},
 			}
 			err := controller.SetupWithManager(mgr)
 			Expect(err).To(BeNil(), "failed to setup controller")
@@ -737,10 +747,15 @@ var _ = Describe("EphemeralRunner", func() {
 			configSecret = createDefaultSecret(GinkgoT(), k8sClient, autoScalingNS.Name)
 
 			controller = &EphemeralRunnerReconciler{
-				Client:        mgr.GetClient(),
-				Scheme:        mgr.GetScheme(),
-				Log:           logf.Log,
-				ActionsClient: fake.NewMultiClient(),
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+				Log:    logf.Log,
+				ResourceBuilder: ResourceBuilder{
+					ActionsClientGetter: &ActionsClientSecretResolver{
+						Client:      mgr.GetClient(),
+						MultiClient: fake.NewMultiClient(),
+					},
+				},
 			}
 			err := controller.SetupWithManager(mgr)
 			Expect(err).To(BeNil(), "failed to setup controller")
@@ -750,7 +765,12 @@ var _ = Describe("EphemeralRunner", func() {
 
 		It("uses an actions client with proxy transport", func() {
 			// Use an actual client
-			controller.ActionsClient = actions.NewMultiClient(logr.Discard())
+			controller.ResourceBuilder = ResourceBuilder{
+				ActionsClientGetter: &ActionsClientSecretResolver{
+					Client:      mgr.GetClient(),
+					MultiClient: actions.NewMultiClient(logr.Discard()),
+				},
+			}
 
 			proxySuccessfulllyCalled := false
 			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -901,10 +921,15 @@ var _ = Describe("EphemeralRunner", func() {
 			Expect(err).NotTo(HaveOccurred(), "failed to create configmap with root CAs")
 
 			controller = &EphemeralRunnerReconciler{
-				Client:        mgr.GetClient(),
-				Scheme:        mgr.GetScheme(),
-				Log:           logf.Log,
-				ActionsClient: fake.NewMultiClient(),
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+				Log:    logf.Log,
+				ResourceBuilder: ResourceBuilder{
+					ActionsClientGetter: &ActionsClientSecretResolver{
+						Client:      mgr.GetClient(),
+						MultiClient: fake.NewMultiClient(),
+					},
+				},
 			}
 
 			err = controller.SetupWithManager(mgr)
@@ -935,7 +960,12 @@ var _ = Describe("EphemeralRunner", func() {
 			server.StartTLS()
 
 			// Use an actual client
-			controller.ActionsClient = actions.NewMultiClient(logr.Discard())
+			controller.ResourceBuilder = ResourceBuilder{
+				ActionsClientGetter: &ActionsClientSecretResolver{
+					Client:      mgr.GetClient(),
+					MultiClient: actions.NewMultiClient(logr.Discard()),
+				},
+			}
 
 			ephemeralRunner := newExampleRunner("test-runner", autoScalingNS.Name, configSecret.Name)
 			ephemeralRunner.Spec.GitHubConfigUrl = server.ConfigURLForOrg("my-org")
