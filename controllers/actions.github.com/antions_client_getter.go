@@ -245,10 +245,6 @@ func (r *ActionsClientVaultResolver) GetActionsClientForAutoscalingRunnerSet(ctx
 	if err := json.Unmarshal([]byte(secret), &m); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal secret: %w", err)
 	}
-	// opts, err := r.actionsClientOptionsForEphemeralRunner(ctx, runner)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get actions client options: %w", err)
-	// }
 
 	return r.MultiClient.GetClientFromSecret(
 		ctx,
