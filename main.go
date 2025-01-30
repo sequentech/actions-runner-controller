@@ -33,6 +33,7 @@ import (
 	"github.com/actions/actions-runner-controller/github"
 	"github.com/actions/actions-runner-controller/github/actions"
 	"github.com/actions/actions-runner-controller/logging"
+	"github.com/actions/actions-runner-controller/proxyconfig"
 	"github.com/actions/actions-runner-controller/vault"
 	"github.com/actions/actions-runner-controller/vault/azurekeyvault"
 	"github.com/kelseyhightower/envconfig"
@@ -519,36 +520,75 @@ func newActionsClientGetter(k8sClient client.Client, multiClient actions.MultiCl
 		return nil, fmt.Errorf("unsupported vault type: %q", vaultType)
 	}
 
-	cfgPath, ok := os.LookupEnv("CONTROLLER_MANAGER_VAULT_PATH")
-	if !ok {
-		return nil, fmt.Errorf("CONTROLLER_MANAGER_VAULT_PATH is not set")
-	}
-
-	f, err := os.Open(cfgPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open vault configuration file: %w", err)
-	}
-	defer f.Close()
-
 	var vault vault.Vault
-	switch vaultType {
-	case "azure":
-		var cfg azurekeyvault.Config
-		if err := json.NewDecoder(f).Decode(&cfg); err != nil {
-			return nil, fmt.Errorf("failed to decode Azure Key Vault configuration: %w", err)
-		}
-		v, err := azurekeyvault.New(cfg)
+	if cfgPath, ok := os.LookupEnv("CONTROLLER_MANAGER_VAULT_PATH"); !ok {
+		v, err := newVaultFromEnv(vaultType)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create Azure Key Vault client: %w", err)
+			return nil, fmt.Errorf("failed to instantiate new vault from env: %v", err)
 		}
-
 		vault = v
-	default:
-		return nil, fmt.Errorf("unsupported vault type: %q", vaultType)
+	} else {
+		v, err := newVaultFromConfigFile(vaultType, cfgPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to instantiate new vault from config file: %v", err)
+		}
+		vault = v
 	}
 
 	return &actionsgithubcom.ActionsClientVaultResolver{
 		Vault:       vault,
 		MultiClient: multiClient,
 	}, nil
+}
+
+func newVaultFromEnv(ty string) (vault.Vault, error) {
+	switch ty {
+	case "azure":
+		cfg := azurekeyvault.Config{
+			TenantID:     os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_TENANT_ID"),
+			ClientID:     os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_CLIENT_ID"),
+			URL:          os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_URL"),
+			CertPath:     os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_CERT_PATH"),
+			CertPassword: os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_CERT_PASSWORD"),
+			JWT:          os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_JWT"),
+		}
+
+		proxyConfig, err := proxyconfig.ReadFromEnv("CONTROLLER_MANAGER_AZURE_VAULT_")
+		if err != nil {
+			return nil, fmt.Errorf("failed to read proxy config: %v", err)
+		}
+		cfg.Proxy = proxyConfig
+
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("failed to validate config: %v", err)
+		}
+
+		return azurekeyvault.New(cfg)
+	default:
+		return nil, fmt.Errorf("unknown vault type %q", ty)
+	}
+}
+
+func newVaultFromConfigFile(ty, configFile string) (vault.Vault, error) {
+	switch ty {
+	case "azure":
+		var cfg azurekeyvault.Config
+		f, err := os.Open(configFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open config file %q: %v", configFile, err)
+		}
+		defer f.Close()
+
+		if err := json.NewDecoder(f).Decode(&cfg); err != nil {
+			return nil, fmt.Errorf("failed to read configuration from file %q: %v", configFile, err)
+		}
+
+		if err := cfg.Validate(); err != nil {
+			return nil, fmt.Errorf("failed to validate config: %v", err)
+		}
+
+		return azurekeyvault.New(cfg)
+	default:
+		return nil, fmt.Errorf("unknown vault type %q", ty)
+	}
 }
