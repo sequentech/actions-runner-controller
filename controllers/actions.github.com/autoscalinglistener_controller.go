@@ -129,33 +129,37 @@ func (r *AutoscalingListenerReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	// Check if the GitHub config secret exists
-	secret := new(corev1.Secret)
-	if err := r.Get(ctx, types.NamespacedName{Namespace: autoscalingListener.Spec.AutoscalingRunnerSetNamespace, Name: autoscalingListener.Spec.GitHubConfigSecret}, secret); err != nil {
-		log.Error(err, "Failed to find GitHub config secret.",
-			"namespace", autoscalingListener.Spec.AutoscalingRunnerSetNamespace,
-			"name", autoscalingListener.Spec.GitHubConfigSecret)
-		return ctrl.Result{}, err
-	}
+	var mirrorSecret *corev1.Secret
+	if _, ok := autoscalingRunnerSet.Annotations[AnnotationKeyGitHubVaultType]; !ok {
 
-	// Create a mirror secret in the same namespace as the AutoscalingListener
-	mirrorSecret := new(corev1.Secret)
-	if err := r.Get(ctx, types.NamespacedName{Namespace: autoscalingListener.Namespace, Name: scaleSetListenerSecretMirrorName(autoscalingListener)}, mirrorSecret); err != nil {
-		if !kerrors.IsNotFound(err) {
-			log.Error(err, "Unable to get listener secret mirror", "namespace", autoscalingListener.Namespace, "name", scaleSetListenerSecretMirrorName(autoscalingListener))
+		secret := new(corev1.Secret)
+		if err := r.Get(ctx, types.NamespacedName{Namespace: autoscalingListener.Spec.AutoscalingRunnerSetNamespace, Name: autoscalingListener.Spec.GitHubConfigSecret}, secret); err != nil {
+			log.Error(err, "Failed to find GitHub config secret.",
+				"namespace", autoscalingListener.Spec.AutoscalingRunnerSetNamespace,
+				"name", autoscalingListener.Spec.GitHubConfigSecret)
 			return ctrl.Result{}, err
 		}
 
-		// Create a mirror secret for the listener pod in the Controller namespace for listener pod to use
-		log.Info("Creating a mirror listener secret for the listener pod")
-		return r.createSecretsForListener(ctx, autoscalingListener, secret, log)
-	}
+		// Create a mirror secret in the same namespace as the AutoscalingListener
+		mirrorSecret = new(corev1.Secret)
+		if err := r.Get(ctx, types.NamespacedName{Namespace: autoscalingListener.Namespace, Name: scaleSetListenerSecretMirrorName(autoscalingListener)}, mirrorSecret); err != nil {
+			if !kerrors.IsNotFound(err) {
+				log.Error(err, "Unable to get listener secret mirror", "namespace", autoscalingListener.Namespace, "name", scaleSetListenerSecretMirrorName(autoscalingListener))
+				return ctrl.Result{}, err
+			}
 
-	// make sure the mirror secret is up to date
-	mirrorSecretDataHash := mirrorSecret.Labels["secret-data-hash"]
-	secretDataHash := hash.ComputeTemplateHash(secret.Data)
-	if mirrorSecretDataHash != secretDataHash {
-		log.Info("Updating mirror listener secret for the listener pod", "mirrorSecretDataHash", mirrorSecretDataHash, "secretDataHash", secretDataHash)
-		return r.updateSecretsForListener(ctx, secret, mirrorSecret, log)
+			// Create a mirror secret for the listener pod in the Controller namespace for listener pod to use
+			log.Info("Creating a mirror listener secret for the listener pod")
+			return r.createSecretsForListener(ctx, autoscalingListener, secret, log)
+		}
+
+		// make sure the mirror secret is up to date
+		mirrorSecretDataHash := mirrorSecret.Labels["secret-data-hash"]
+		secretDataHash := hash.ComputeTemplateHash(secret.Data)
+		if mirrorSecretDataHash != secretDataHash {
+			log.Info("Updating mirror listener secret for the listener pod", "mirrorSecretDataHash", mirrorSecretDataHash, "secretDataHash", secretDataHash)
+			return r.updateSecretsForListener(ctx, secret, mirrorSecret, log)
+		}
 	}
 
 	// Make sure the runner scale set listener service account is created for the listener pod in the controller namespace
@@ -487,7 +491,7 @@ func (r *AutoscalingListenerReconciler) createListenerPod(ctx context.Context, a
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	newPod, err := r.ResourceBuilder.newScaleSetListenerPod(autoscalingListener, &podConfig, serviceAccount, secret, metricsConfig, envs...)
+	newPod, err := r.ResourceBuilder.newScaleSetListenerPod(autoscalingListener, &podConfig, serviceAccount, metricsConfig, envs...)
 	if err != nil {
 		logger.Error(err, "Failed to build listener pod")
 		return ctrl.Result{}, err

@@ -105,9 +105,9 @@ var _ = Describe("EphemeralRunner", func() {
 				Scheme: mgr.GetScheme(),
 				Log:    logf.Log,
 				ResourceBuilder: ResourceBuilder{
-					ActionsClientGetter: &ActionsClientSecretResolver{
-						Client:      mgr.GetClient(),
-						MultiClient: fake.NewMultiClient(),
+					ActionsClientPool: &ActionsClientPool{
+						k8sClient:   mgr.GetClient(),
+						multiClient: fake.NewMultiClient(),
 					},
 				},
 			}
@@ -671,9 +671,9 @@ var _ = Describe("EphemeralRunner", func() {
 				Scheme: mgr.GetScheme(),
 				Log:    logf.Log,
 				ResourceBuilder: ResourceBuilder{
-					ActionsClientGetter: &ActionsClientSecretResolver{
-						Client: mgr.GetClient(),
-						MultiClient: fake.NewMultiClient(
+					ActionsClientPool: &ActionsClientPool{
+						k8sClient: mgr.GetClient(),
+						multiClient: fake.NewMultiClient(
 							fake.WithDefaultClient(
 								fake.NewFakeClient(
 									fake.WithGetRunner(
@@ -751,9 +751,9 @@ var _ = Describe("EphemeralRunner", func() {
 				Scheme: mgr.GetScheme(),
 				Log:    logf.Log,
 				ResourceBuilder: ResourceBuilder{
-					ActionsClientGetter: &ActionsClientSecretResolver{
-						Client:      mgr.GetClient(),
-						MultiClient: fake.NewMultiClient(),
+					ActionsClientPool: &ActionsClientPool{
+						k8sClient:   mgr.GetClient(),
+						multiClient: fake.NewMultiClient(),
 					},
 				},
 			}
@@ -766,9 +766,9 @@ var _ = Describe("EphemeralRunner", func() {
 		It("uses an actions client with proxy transport", func() {
 			// Use an actual client
 			controller.ResourceBuilder = ResourceBuilder{
-				ActionsClientGetter: &ActionsClientSecretResolver{
-					Client:      mgr.GetClient(),
-					MultiClient: actions.NewMultiClient(logr.Discard()),
+				ActionsClientPool: &ActionsClientPool{
+					k8sClient:   mgr.GetClient(),
+					multiClient: actions.NewMultiClient(logr.Discard()),
 				},
 			}
 
@@ -925,9 +925,9 @@ var _ = Describe("EphemeralRunner", func() {
 				Scheme: mgr.GetScheme(),
 				Log:    logf.Log,
 				ResourceBuilder: ResourceBuilder{
-					ActionsClientGetter: &ActionsClientSecretResolver{
-						Client:      mgr.GetClient(),
-						MultiClient: fake.NewMultiClient(),
+					ActionsClientPool: &ActionsClientPool{
+						k8sClient:   mgr.GetClient(),
+						multiClient: fake.NewMultiClient(),
 					},
 				},
 			}
@@ -961,9 +961,9 @@ var _ = Describe("EphemeralRunner", func() {
 
 			// Use an actual client
 			controller.ResourceBuilder = ResourceBuilder{
-				ActionsClientGetter: &ActionsClientSecretResolver{
-					Client:      mgr.GetClient(),
-					MultiClient: actions.NewMultiClient(logr.Discard()),
+				ActionsClientPool: &ActionsClientPool{
+					k8sClient:   mgr.GetClient(),
+					multiClient: actions.NewMultiClient(logr.Discard()),
 				},
 			}
 

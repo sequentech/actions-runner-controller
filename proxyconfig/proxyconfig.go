@@ -84,9 +84,6 @@ func (c *ProxyServerConfig) proxyURL() (*url.URL, error) {
 }
 
 func ReadFromEnv(prefix string) (*ProxyConfig, error) {
-	if prefix != "" && !strings.HasSuffix(prefix, "_") {
-		prefix = prefix + "_"
-	}
 	url := os.Getenv(prefix + "HTTP_URL")
 	username := os.Getenv(prefix + "HTTP_USERNAME")
 	password := os.Getenv(prefix + "HTTP_PASSWORD")

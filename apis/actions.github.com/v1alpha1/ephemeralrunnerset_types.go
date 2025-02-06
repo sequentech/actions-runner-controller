@@ -63,6 +63,22 @@ type EphemeralRunnerSet struct {
 	Status EphemeralRunnerSetStatus `json:"status,omitempty"`
 }
 
+func (ers *EphemeralRunnerSet) GitHubConfigSecret() string {
+	return ers.Spec.EphemeralRunnerSpec.GitHubConfigSecret
+}
+
+func (ers *EphemeralRunnerSet) GitHubConfigUrl() string {
+	return ers.Spec.EphemeralRunnerSpec.GitHubConfigUrl
+}
+
+func (ers *EphemeralRunnerSet) Proxy() *ProxyConfig {
+	return ers.Spec.EphemeralRunnerSpec.Proxy
+}
+
+func (ers *EphemeralRunnerSet) GitHubServerTLS() *GitHubServerTLSConfig {
+	return ers.Spec.EphemeralRunnerSpec.GitHubServerTLS
+}
+
 //+kubebuilder:object:root=true
 
 // EphemeralRunnerSetList contains a list of EphemeralRunnerSet

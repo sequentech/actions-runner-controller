@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -33,9 +32,7 @@ import (
 	"github.com/actions/actions-runner-controller/github"
 	"github.com/actions/actions-runner-controller/github/actions"
 	"github.com/actions/actions-runner-controller/logging"
-	"github.com/actions/actions-runner-controller/proxyconfig"
 	"github.com/actions/actions-runner-controller/vault"
-	"github.com/actions/actions-runner-controller/vault/azurekeyvault"
 	"github.com/kelseyhightower/envconfig"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -278,19 +275,29 @@ func main() {
 			log.WithName("actions-clients"),
 		)
 
-		actionsClientGetter, err := newActionsClientGetter(
-			mgr.GetClient(),
-			actionsMultiClient,
-		)
+		vaults, err := vault.InitAll("CONTROLLER_MANAGER_")
 		if err != nil {
-			log.Error(err, "unable to create actions client resolver")
+			log.Error(err, "unable to read vaults")
 			os.Exit(1)
 		}
 
+		var poolOptions []actionsgithubcom.ActionsClientPoolOption
+		for name, vault := range vaults {
+			poolOptions = append(poolOptions, actionsgithubcom.WithVault(name, vault))
+		}
+
+		clientPool := actionsgithubcom.NewActionsClientPool(
+			mgr.GetClient(),
+			actionsMultiClient,
+			poolOptions...,
+		)
+
 		rb := actionsgithubcom.ResourceBuilder{
 			ExcludeLabelPropagationPrefixes: excludeLabelPropagationPrefixes,
-			ActionsClientGetter:             actionsClientGetter,
+			ActionsClientPool:               clientPool,
 		}
+
+		log.Info("Resource builder initializing")
 
 		if err = (&actionsgithubcom.AutoscalingRunnerSetReconciler{
 			Client:                             mgr.GetClient(),
@@ -503,92 +510,4 @@ func (s *commaSeparatedStringSlice) Set(value string) error {
 		*s = append(*s, v)
 	}
 	return nil
-}
-
-func newActionsClientGetter(k8sClient client.Client, multiClient actions.MultiClient) (actionsgithubcom.ActionsClientGetter, error) {
-	vaultType, ok := os.LookupEnv("CONTROLLER_MANAGER_VAULT_TYPE")
-	if !ok {
-		return &actionsgithubcom.ActionsClientSecretResolver{
-			Client:      k8sClient,
-			MultiClient: multiClient,
-		}, nil
-	}
-
-	switch vaultType {
-	case "azure":
-	default:
-		return nil, fmt.Errorf("unsupported vault type: %q", vaultType)
-	}
-
-	var vault vault.Vault
-	if cfgPath, ok := os.LookupEnv("CONTROLLER_MANAGER_VAULT_PATH"); !ok {
-		v, err := newVaultFromEnv(vaultType)
-		if err != nil {
-			return nil, fmt.Errorf("failed to instantiate new vault from env: %v", err)
-		}
-		vault = v
-	} else {
-		v, err := newVaultFromConfigFile(vaultType, cfgPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to instantiate new vault from config file: %v", err)
-		}
-		vault = v
-	}
-
-	return &actionsgithubcom.ActionsClientVaultResolver{
-		Vault:       vault,
-		MultiClient: multiClient,
-	}, nil
-}
-
-func newVaultFromEnv(ty string) (vault.Vault, error) {
-	switch ty {
-	case "azure":
-		cfg := azurekeyvault.Config{
-			TenantID:     os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_TENANT_ID"),
-			ClientID:     os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_CLIENT_ID"),
-			URL:          os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_URL"),
-			CertPath:     os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_CERT_PATH"),
-			CertPassword: os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_CERT_PASSWORD"),
-			JWT:          os.Getenv("CONTROLLER_MANAGER_AZURE_VAULT_JWT"),
-		}
-
-		proxyConfig, err := proxyconfig.ReadFromEnv("CONTROLLER_MANAGER_AZURE_VAULT_")
-		if err != nil {
-			return nil, fmt.Errorf("failed to read proxy config: %v", err)
-		}
-		cfg.Proxy = proxyConfig
-
-		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("failed to validate config: %v", err)
-		}
-
-		return azurekeyvault.New(cfg)
-	default:
-		return nil, fmt.Errorf("unknown vault type %q", ty)
-	}
-}
-
-func newVaultFromConfigFile(ty, configFile string) (vault.Vault, error) {
-	switch ty {
-	case "azure":
-		var cfg azurekeyvault.Config
-		f, err := os.Open(configFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to open config file %q: %v", configFile, err)
-		}
-		defer f.Close()
-
-		if err := json.NewDecoder(f).Decode(&cfg); err != nil {
-			return nil, fmt.Errorf("failed to read configuration from file %q: %v", configFile, err)
-		}
-
-		if err := cfg.Validate(); err != nil {
-			return nil, fmt.Errorf("failed to validate config: %v", err)
-		}
-
-		return azurekeyvault.New(cfg)
-	default:
-		return nil, fmt.Errorf("unknown vault type %q", ty)
-	}
 }

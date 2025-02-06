@@ -152,7 +152,7 @@ func (c *Config) httpClient() (*http.Client, error) {
 		return nil, fmt.Errorf("failed to get http transport")
 	}
 	if c.Proxy != nil {
-		pc, err := c.ProxyConfig()
+		pc, err := c.Proxy.ProxyConfig()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create proxy config: %v", err)
 		}

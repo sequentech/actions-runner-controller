@@ -12,7 +12,10 @@ import (
 )
 
 func main() {
-	config, err := config.Read()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	config, err := config.Read(ctx)
 	if err != nil {
 		log.Printf("Failed to read config: %v", err)
 		os.Exit(1)
@@ -23,9 +26,6 @@ func main() {
 		log.Printf("Failed to initialize app: %v", err)
 		os.Exit(1)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	if err := app.Run(ctx); err != nil {
 		log.Printf("Application returned an error: %v", err)

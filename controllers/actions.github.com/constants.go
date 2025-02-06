@@ -43,6 +43,8 @@ const (
 	AnnotationKeyGitHubRunnerGroupName    = "actions.github.com/runner-group-name"
 	AnnotationKeyGitHubRunnerScaleSetName = "actions.github.com/runner-scale-set-name"
 	AnnotationKeyPatchID                  = "actions.github.com/patch-id"
+
+	AnnotationKeyGitHubVaultType = "actions.github.com/vault"
 )
 
 // Labels applied to listener roles
@@ -60,12 +62,6 @@ const (
 	AnnotationKeyKubernetesModeServiceAccountName = "actions.github.com/cleanup-kubernetes-mode-service-account-name"
 	AnnotationKeyGitHubSecretName                 = "actions.github.com/cleanup-github-secret-name"
 	AnnotationKeyNoPermissionServiceAccountName   = "actions.github.com/cleanup-no-permission-service-account-name"
-)
-
-// Annotations on resources used when Vault is enabled.
-const (
-	// AnnotationKeyVaultKey is used to fetch the secret from vault
-	AnnotationKeyVaultKey = "actions.github.com/vault-key"
 )
 
 // DefaultScaleSetListenerLogLevel is the default log level applied

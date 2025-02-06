@@ -11,8 +11,9 @@ import (
 	"strings"
 
 	"github.com/actions/actions-runner-controller/apis/actions.github.com/v1alpha1"
+	"github.com/actions/actions-runner-controller/apis/actions.github.com/v1alpha1/appconfig"
 	"github.com/actions/actions-runner-controller/build"
-	listenerconfig "github.com/actions/actions-runner-controller/cmd/githubrunnerscalesetlistener/config"
+	ghalistenerconfig "github.com/actions/actions-runner-controller/cmd/ghalistener/config"
 	"github.com/actions/actions-runner-controller/github/actions"
 	"github.com/actions/actions-runner-controller/hash"
 	"github.com/actions/actions-runner-controller/logging"
@@ -38,8 +39,6 @@ var commonLabelKeys = [...]string{
 }
 
 const labelValueKubernetesPartOf = "gha-runner-scale-set"
-
-var vaultSecretAnnotationKeys = [...]string{}
 
 var (
 	scaleSetListenerLogLevel   = DefaultScaleSetListenerLogLevel
@@ -73,7 +72,7 @@ func SetListenerEntrypoint(entrypoint string) {
 
 type ResourceBuilder struct {
 	ExcludeLabelPropagationPrefixes []string
-	ActionsClientGetter
+	*ActionsClientPool
 }
 
 func (b *ResourceBuilder) newAutoScalingListener(autoscalingRunnerSet *v1alpha1.AutoscalingRunnerSet, ephemeralRunnerSet *v1alpha1.EphemeralRunnerSet, namespace, image string, imagePullSecrets []corev1.LocalObjectReference) (*v1alpha1.AutoscalingListener, error) {
@@ -102,6 +101,10 @@ func (b *ResourceBuilder) newAutoScalingListener(autoscalingRunnerSet *v1alpha1.
 	annotations := map[string]string{
 		annotationKeyRunnerSpecHash: autoscalingRunnerSet.ListenerSpecHash(),
 		annotationKeyValuesHash:     autoscalingRunnerSet.Annotations[annotationKeyValuesHash],
+	}
+
+	if v, ok := autoscalingRunnerSet.Annotations[AnnotationKeyGitHubVaultType]; ok {
+		annotations[AnnotationKeyGitHubVaultType] = v
 	}
 
 	if err := applyGitHubURLLabels(autoscalingRunnerSet.Spec.GitHubConfigUrl, labels); err != nil {
@@ -166,30 +169,8 @@ func (b *ResourceBuilder) newScaleSetListenerConfig(autoscalingListener *v1alpha
 		metricsEndpoint = metricsConfig.endpoint
 	}
 
-	var appID int64
-	if id, ok := secret.Data["github_app_id"]; ok {
-		var err error
-		appID, err = strconv.ParseInt(string(id), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert github_app_id to int: %v", err)
-		}
-	}
-
-	var appInstallationID int64
-	if id, ok := secret.Data["github_app_installation_id"]; ok {
-		var err error
-		appInstallationID, err = strconv.ParseInt(string(id), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert github_app_installation_id to int: %v", err)
-		}
-	}
-
-	config := listenerconfig.Config{
+	config := ghalistenerconfig.Config{
 		ConfigureUrl:                autoscalingListener.Spec.GitHubConfigUrl,
-		AppID:                       appID,
-		AppInstallationID:           appInstallationID,
-		AppPrivateKey:               string(secret.Data["github_app_private_key"]),
-		Token:                       string(secret.Data["github_token"]),
 		EphemeralRunnerSetNamespace: autoscalingListener.Spec.AutoscalingRunnerSetNamespace,
 		EphemeralRunnerSetName:      autoscalingListener.Spec.EphemeralRunnerSetName,
 		MaxRunners:                  autoscalingListener.Spec.MaxRunners,
@@ -201,6 +182,17 @@ func (b *ResourceBuilder) newScaleSetListenerConfig(autoscalingListener *v1alpha
 		LogFormat:                   scaleSetListenerLogFormat,
 		MetricsAddr:                 metricsAddr,
 		MetricsEndpoint:             metricsEndpoint,
+	}
+
+	if ty, ok := autoscalingListener.Annotations[AnnotationKeyGitHubVaultType]; !ok {
+		appConfig, err := appconfig.FromSecret(secret)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse appconfig from secret: %v", err)
+		}
+		config.AppConfig = *appConfig
+	} else {
+		config.VaultType = ty
+		config.VaultLookupKey = autoscalingListener.Spec.GitHubConfigSecret
 	}
 
 	var buf bytes.Buffer
@@ -219,7 +211,7 @@ func (b *ResourceBuilder) newScaleSetListenerConfig(autoscalingListener *v1alpha
 	}, nil
 }
 
-func (b *ResourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.AutoscalingListener, podConfig *corev1.Secret, serviceAccount *corev1.ServiceAccount, secret *corev1.Secret, metricsConfig *listenerMetricsServerConfig, envs ...corev1.EnvVar) (*corev1.Pod, error) {
+func (b *ResourceBuilder) newScaleSetListenerPod(autoscalingListener *v1alpha1.AutoscalingListener, podConfig *corev1.Secret, serviceAccount *corev1.ServiceAccount, metricsConfig *listenerMetricsServerConfig, envs ...corev1.EnvVar) (*corev1.Pod, error) {
 	listenerEnv := []corev1.EnvVar{
 		{
 			Name:  "LISTENER_CONFIG_PATH",
@@ -526,6 +518,10 @@ func (b *ResourceBuilder) newEphemeralRunnerSet(autoscalingRunnerSet *v1alpha1.A
 		annotationKeyRunnerSpecHash:           runnerSpecHash,
 	}
 
+	if v, ok := autoscalingRunnerSet.Annotations[AnnotationKeyGitHubVaultType]; ok {
+		newAnnotations[AnnotationKeyGitHubVaultType] = v
+	}
+
 	newEphemeralRunnerSet := &v1alpha1.EphemeralRunnerSet{
 		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
@@ -564,6 +560,7 @@ func (b *ResourceBuilder) newEphemeralRunner(ephemeralRunnerSet *v1alpha1.Epheme
 	for key, val := range ephemeralRunnerSet.Annotations {
 		annotations[key] = val
 	}
+
 	annotations[AnnotationKeyPatchID] = strconv.Itoa(ephemeralRunnerSet.Spec.PatchID)
 	return &v1alpha1.EphemeralRunner{
 		TypeMeta: metav1.TypeMeta{},

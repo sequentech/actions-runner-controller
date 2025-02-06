@@ -1,41 +1,42 @@
 package config
 
 import (
+	"context"
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 
+	"github.com/actions/actions-runner-controller/apis/actions.github.com/v1alpha1/appconfig"
 	"github.com/actions/actions-runner-controller/build"
 	"github.com/actions/actions-runner-controller/github/actions"
 	"github.com/actions/actions-runner-controller/logging"
+	"github.com/actions/actions-runner-controller/vault"
 	"github.com/go-logr/logr"
 	"golang.org/x/net/http/httpproxy"
 )
 
 type Config struct {
-	ConfigureUrl                string `json:"configureUrl"`
-	AppID                       int64  `json:"appID"`
-	AppInstallationID           int64  `json:"appInstallationID"`
-	AppPrivateKey               string `json:"appPrivateKey"`
-	Token                       string `json:"token"`
-	EphemeralRunnerSetNamespace string `json:"ephemeralRunnerSetNamespace"`
-	EphemeralRunnerSetName      string `json:"ephemeralRunnerSetName"`
-	MaxRunners                  int    `json:"maxRunners"`
-	MinRunners                  int    `json:"minRunners"`
-	RunnerScaleSetId            int    `json:"runnerScaleSetId"`
-	RunnerScaleSetName          string `json:"runnerScaleSetName"`
-	ServerRootCA                string `json:"serverRootCA"`
-	LogLevel                    string `json:"logLevel"`
-	LogFormat                   string `json:"logFormat"`
-	MetricsAddr                 string `json:"metricsAddr"`
-	MetricsEndpoint             string `json:"metricsEndpoint"`
+	ConfigureUrl   string `json:"configure_url"`
+	VaultType      string `json:"vault_type"`
+	VaultLookupKey string `json:"vault_lookup_key"`
+	appconfig.AppConfig
+	EphemeralRunnerSetNamespace string `json:"ephemeral_runner_set_namespace"`
+	EphemeralRunnerSetName      string `json:"ephemeral_runner_set_name"`
+	MaxRunners                  int    `json:"max_runners"`
+	MinRunners                  int    `json:"min_runners"`
+	RunnerScaleSetId            int    `json:"runner_scale_set_id"`
+	RunnerScaleSetName          string `json:"runner_scale_set_name"`
+	ServerRootCA                string `json:"server_root_ca"`
+	LogLevel                    string `json:"log_level"`
+	LogFormat                   string `json:"log_format"`
+	MetricsAddr                 string `json:"metrics_addr"`
+	MetricsEndpoint             string `json:"metrics_endpoint"`
 }
 
-func Read() (Config, error) {
+func Read(ctx context.Context) (*Config, error) {
 	configPath, ok := os.LookupEnv("LISTENER_CONFIG_PATH")
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Error: LISTENER_CONFIG_PATH environment variable is not set\n")
@@ -44,50 +45,54 @@ func Read() (Config, error) {
 
 	f, err := os.Open(configPath)
 	if err != nil {
-		return Config{}, err
+		return nil, err
 	}
 	defer f.Close()
 
 	var config Config
 	if err := json.NewDecoder(f).Decode(&config); err != nil {
-		return Config{}, fmt.Errorf("failed to decode config: %w", err)
+		return nil, fmt.Errorf("failed to decode config: %w", err)
 	}
 
-	vaultPath, ok := os.LookupEnv("LISTENER_CONFIG_VAULT_PATH")
-	if !ok {
+	if config.VaultType == "" {
 		if err := config.Validate(); err != nil {
-			return Config{}, fmt.Errorf("config validation failed: %w", err)
+			return nil, fmt.Errorf("failed to validate configuration: %v", err)
 		}
 
-		return config, nil
+		return &config, nil
 	}
 
-	f, err = os.Open(vaultPath)
-	if err != nil {
-		return Config{}, err
+	if config.VaultLookupKey == "" {
+		panic(fmt.Errorf("Vault type set to %q, but lookup key is empty", config.VaultType))
 	}
-	defer f.Close()
 
-	var m map[string]string
-	if err := json.NewDecoder(f).Decode(&m); err != nil {
-		return Config{}, fmt.Errorf("failed to decode vault config: %w", err)
-	}
-	config.Token = m["github_token"]
-	config.AppID, err = strconv.ParseInt(m["github_app_id"], 10, 64)
+	vaults, err := vault.InitAll("LISTENER_")
 	if err != nil {
-		return Config{}, fmt.Errorf("failed to parse github_app_id: %w", err)
+		return nil, fmt.Errorf("failed to initialize vaults: %v", err)
 	}
-	config.AppInstallationID, err = strconv.ParseInt(m["github_app_installation_id"], 10, 64)
+
+	vault, ok := vaults[config.VaultType]
+	if !ok {
+		return nil, fmt.Errorf("vault %q is not initialized", config.VaultType)
+	}
+
+	appConfigRaw, err := vault.GetSecret(ctx, config.VaultLookupKey)
 	if err != nil {
-		return Config{}, fmt.Errorf("failed to parse github_app_installation_id: %w", err)
+		return nil, err
 	}
-	config.AppPrivateKey = m["github_app_private_key"]
+
+	appConfig, err := appconfig.FromString(appConfigRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read app config from string: %v", err)
+	}
+
+	config.AppConfig = *appConfig
 
 	if err := config.Validate(); err != nil {
-		return Config{}, fmt.Errorf("config validation failed: %w", err)
+		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
-	return config, nil
+	return &config, nil
 }
 
 // Validate checks the configuration for errors.

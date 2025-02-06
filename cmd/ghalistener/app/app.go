@@ -37,9 +37,9 @@ type Worker interface {
 	HandleDesiredRunnerCount(ctx context.Context, count int, jobsCompleted int) (int, error)
 }
 
-func New(config config.Config) (*App, error) {
+func New(config *config.Config) (*App, error) {
 	app := &App{
-		config: config,
+		config: *config,
 	}
 
 	ghConfig, err := actions.ParseGitHubConfigFromURL(config.ConfigureUrl)
