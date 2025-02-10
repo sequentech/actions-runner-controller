@@ -17,6 +17,20 @@ type AppConfig struct {
 	Token string `json:"github_token"`
 }
 
+func (c *AppConfig) tidy() *AppConfig {
+	if len(c.Token) > 0 {
+		return &AppConfig{
+			Token: c.Token,
+		}
+	}
+
+	return &AppConfig{
+		AppID:             c.AppID,
+		AppInstallationID: c.AppInstallationID,
+		AppPrivateKey:     c.AppPrivateKey,
+	}
+}
+
 func (c *AppConfig) Validate() error {
 	hasToken := len(c.Token) > 0
 	hasGitHubAppAuth := c.hasGitHubAppAuth()
@@ -35,39 +49,36 @@ func (c *AppConfig) hasGitHubAppAuth() bool {
 }
 
 func FromSecret(secret *corev1.Secret) (*AppConfig, error) {
-	token := string(secret.Data["github_token"])
-	hasToken := len(token) > 0
-
-	appID := string(secret.Data["github_app_id"])
-	appInstallationID := string(secret.Data["github_app_installation_id"])
-	appPrivateKey := string(secret.Data["github_app_private_key"])
-	hasGitHubAppAuth := len(appID) > 0 && len(appInstallationID) > 0 && len(appPrivateKey) > 0
-
-	if hasToken && hasGitHubAppAuth {
-		return nil, fmt.Errorf("must provide secret with only PAT or GitHub App Auth to avoid ambiguity in client behavior")
+	var appID int64
+	if v := string(secret.Data["github_app_id"]); v != "" {
+		val, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		appID = val
 	}
 
-	if hasToken {
-		return &AppConfig{
-			Token: token,
-		}, nil
+	var appInstallationID int64
+	if v := string(secret.Data["github_app_installation_id"]); v != "" {
+		val, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		appInstallationID = val
 	}
 
-	parsedAppID, err := strconv.ParseInt(appID, 10, 64)
-	if err != nil {
-		return nil, err
+	cfg := &AppConfig{
+		Token:             string(secret.Data["github_token"]),
+		AppID:             appID,
+		AppInstallationID: appInstallationID,
+		AppPrivateKey:     string(secret.Data["github_app_private_key"]),
 	}
 
-	parsedAppInstallationID, err := strconv.ParseInt(appInstallationID, 10, 64)
-	if err != nil {
-		return nil, err
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("failed to validate config: %v", err)
 	}
 
-	return &AppConfig{
-		AppID:             parsedAppID,
-		AppInstallationID: parsedAppInstallationID,
-		AppPrivateKey:     appPrivateKey,
-	}, err
+	return cfg.tidy(), nil
 }
 
 func FromString(v string) (*AppConfig, error) {
@@ -76,16 +87,9 @@ func FromString(v string) (*AppConfig, error) {
 		return nil, err
 	}
 
-	hasToken := len(appConfig.Token) > 0
-
-	if !hasToken && !appConfig.hasGitHubAppAuth() {
-		return nil, fmt.Errorf("neither PAT nor GitHub App Auth credentials provided in secret")
+	if err := appConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("failed to validate app config decoded from string: %w", err)
 	}
 
-	if hasToken {
-		return &AppConfig{Token: appConfig.Token}, nil
-	}
-
-	appConfig.Token = ""
-	return &appConfig, nil
+	return appConfig.tidy(), nil
 }

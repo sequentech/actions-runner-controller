@@ -125,7 +125,9 @@ githubConfigSecret:
 
 ## Custom annotations applied to the AutoscalingRunnerSet
 # annotations:
-## Annotation used to define which vault should be used to fetch secrets
+#   # Annotation used to define which vault should be used to fetch secrets
+#   # If left emty, kubernetes secrets would be used. Otherwise, configured vault
+#   # would be used to resolve sensitive configuration variables
 #   actions.github.com/vault: azure_key_vault
 
 ## Custom labels applied to the AutoscalingRunnerSet

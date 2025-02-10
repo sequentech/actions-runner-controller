@@ -10,9 +10,19 @@ metadata:
   name: {{ include "gha-runner-scale-set.scale-set-name" . }}
   namespace: {{ .Release.Namespace }}
   labels:
+    {{- if .Values.labels }}
+    {{- range $key, $value := .Values.labels }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+    {{- end }}
     app.kubernetes.io/component: "autoscaling-runner-set"
     {{- include "gha-runner-scale-set.labels" . | nindent 4 }}
   annotations:
+    {{- if .Values.annotations }}
+    {{- range $key, $value := .Values.annotations }}
+    {{ $key }}: {{ $value }}
+    {{- end }}
+    {{- end }}
     actions.github.com/values-hash: {{ toJson .Values | sha256sum | trunc 63 }}
     {{- $containerMode := .Values.containerMode }}
     {{- if not (kindIs "string" .Values.githubConfigSecret) }}
@@ -27,11 +37,6 @@ metadata:
     {{- end }}
     {{- if and (ne $containerMode.type "kubernetes") (not .Values.template.spec.serviceAccountName) }}
     actions.github.com/cleanup-no-permission-service-account-name: {{ include "gha-runner-scale-set.noPermissionServiceAccountName" . }}
-    {{- end }}
-    {{- with .Values.annotations }}
-    {{- range $key, $value := . }}
-    {{ $key }}: {{ $value }}
-    {{- end }}
     {{- end }}
 
 spec:
