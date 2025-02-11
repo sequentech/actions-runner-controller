@@ -13,21 +13,6 @@ type Vault interface {
 	GetSecret(ctx context.Context, name string) (string, error)
 }
 
-type vaultError string
-
-func (e vaultError) Error() string {
-	return string(e)
-}
-
-func (e vaultError) String() string {
-	return string(e)
-}
-
-const (
-	ErrTypeUnknown = vaultError("vault type unknown")
-	ErrNoType      = vaultError("vault type not set")
-)
-
 const (
 	VaultTypeAzureKeyVault = "azure_key_vault"
 )
