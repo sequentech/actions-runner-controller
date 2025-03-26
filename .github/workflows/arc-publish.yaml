@@ -25,6 +25,10 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
+env:
+  TARGET_ORG: ${{ vars.TARGET_ORG }}
+  TARGET_RELEASES_REPO: ${{ vars.TARGET_RELEASES_REPO }}
+
 jobs:
   release-controller:
     name: Release
