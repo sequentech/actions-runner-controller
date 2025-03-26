@@ -105,11 +105,13 @@ jobs:
         echo "LATEST_CHART_VERSION=$LATEST_RELEASED_CHART_VERSION" >> $GITHUB_ENV
 
         # Always publish if force is true
-        if [[ $NEW_CHART_VERSION != $LATEST_RELEASED_CHART_VERSION || "${{ inputs.force }}" == "true" ]]; then
-          echo "publish=true" >> $GITHUB_OUTPUT
-        else
-          echo "publish=false" >> $GITHUB_OUTPUT
-        fi
+        # if [[ $NEW_CHART_VERSION != $LATEST_RELEASED_CHART_VERSION || "${{ inputs.force }}" == "true" ]]; then
+        #  echo "publish=true" >> $GITHUB_OUTPUT
+        # else
+        #  echo "publish=false" >> $GITHUB_OUTPUT
+        # fi
+        # WARNING: we always not publish the chart for now since it's a fork
+        echo "publish=false" >> $GITHUB_OUTPUT
 
     - name: Job summary
       run: |
@@ -128,7 +130,7 @@ jobs:
     permissions:
       contents: write # for helm/chart-releaser-action to push chart release and create a release
     env:
-      CHART_TARGET_ORG: actions-runner-controller
+      CHART_TARGET_ORG: ${{ vars.TARGET_ORG }}
       CHART_TARGET_REPO: actions-runner-controller.github.io
       CHART_TARGET_BRANCH: master
 

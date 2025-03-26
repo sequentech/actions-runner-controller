@@ -15,7 +15,7 @@ on:
 env:
   # Safeguard to prevent pushing images to registeries after build
   PUSH_TO_REGISTRIES: true
-  TARGET_ORG: actions-runner-controller
+  TARGET_ORG: ${{ vars.TARGET_ORG }}
   TARGET_WORKFLOW: release-runners.yaml
   DOCKER_VERSION: 24.0.7
 
